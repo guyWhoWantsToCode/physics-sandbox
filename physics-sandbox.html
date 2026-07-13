@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinetics — Physics Sandbox</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1826;
+    --panel: rgba(13, 28, 44, 0.78);
+    --panel-border: rgba(126, 190, 228, 0.2);
+    --panel-glow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(126, 190, 228, 0.06) inset;
+    --ink: #e8f2fa;
+    --ink-dim: #7f9cb3;
+    --cyan: #6fd3ff;
+    --amber: #ffb454;
+    --coral: #ff6b6b;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    --sans: "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); font-family: var(--sans); color: var(--ink); }
+
+  #world { position: fixed; inset: 0; display: block; cursor: crosshair; }
+  #world.dragging { cursor: grab; }
+  #world.deleting { cursor: not-allowed; }
+  #world.exploding { cursor: cell; }
+
+  /* Vignette + top light — pure CSS, zero render cost in the loop */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background:
+      radial-gradient(ellipse 120% 90% at 50% 0%, rgba(111, 211, 255, 0.05), transparent 55%),
+      radial-gradient(ellipse 140% 120% at 50% 50%, transparent 55%, rgba(2, 8, 15, 0.55) 100%);
+  }
+
+  /* ---------- Panel entrance ---------- */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes riseC { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes riseL { from { opacity: 0; transform: translate(-14px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+
+  /* ---------- Header ---------- */
+  header {
+    position: fixed; top: 18px; left: 22px; z-index: 10;
+    pointer-events: none; user-select: none;
+    animation: rise .7s var(--ease) both;
+  }
+  header h1 {
+    font-size: 17px; font-weight: 700; letter-spacing: 0.34em;
+    text-transform: uppercase; color: var(--ink);
+    text-shadow: 0 0 24px rgba(111, 211, 255, 0.35);
+  }
+  header h1 span { color: var(--cyan); }
+  header p {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em;
+    color: var(--ink-dim); margin-top: 4px; text-transform: uppercase;
+  }
+
+  /* ---------- HUD readout ---------- */
+  #hud {
+    position: fixed; top: 18px; right: 22px; z-index: 10;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    color: var(--ink-dim); user-select: none; pointer-events: none;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 10px 14px; backdrop-filter: blur(14px);
+    box-shadow: var(--panel-glow);
+    display: grid; grid-template-columns: auto auto; gap: 3px 14px;
+    animation: rise .7s var(--ease) .08s both;
+  }
+  #hud .k { text-align: left; }
+  #hud .v { text-align: right; color: var(--ink); font-weight: 500; min-width: 52px; }
+  #hud .v.good { color: var(--cyan); }
+  #hud .v.warn { color: var(--amber); }
+  #hud #hudState { grid-column: 1 / -1; text-align: right; color: var(--amber); height: 14px; }
+
+  /* ---------- Tool rail ---------- */
+  #tools {
+    position: fixed; left: 20px; top: 50%; transform: translateY(-50%); z-index: 10;
+    display: flex; flex-direction: column; gap: 7px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 10px; backdrop-filter: blur(14px);
+    box-shadow: var(--panel-glow);
+    animation: riseL .7s var(--ease) .12s both;
+  }
+  .tool {
+    width: 46px; height: 46px; border-radius: 11px; border: 1px solid transparent;
+    background: transparent; color: var(--ink-dim); cursor: pointer;
+    display: grid; place-items: center; position: relative;
+    transition: color .18s var(--ease), background .18s var(--ease),
+                border-color .18s var(--ease), transform .18s var(--ease),
+                box-shadow .18s var(--ease);
+  }
+  .tool:hover { color: var(--ink); background: rgba(111, 211, 255, 0.07); transform: translateY(-1px); }
+  .tool:active { transform: scale(0.94); }
+  .tool.active {
+    color: var(--cyan); background: rgba(111, 211, 255, 0.13);
+    border-color: rgba(111, 211, 255, 0.45);
+    box-shadow: 0 0 16px rgba(111, 211, 255, 0.22), 0 0 0 1px rgba(111, 211, 255, 0.1) inset;
+  }
+  .tool.danger.active {
+    color: var(--coral); background: rgba(255, 107, 107, 0.12);
+    border-color: rgba(255, 107, 107, 0.45);
+    box-shadow: 0 0 16px rgba(255, 107, 107, 0.22);
+  }
+  .tool.boom.active {
+    color: var(--amber); background: rgba(255, 180, 84, 0.12);
+    border-color: rgba(255, 180, 84, 0.45);
+    box-shadow: 0 0 16px rgba(255, 180, 84, 0.25);
+  }
+  .tool svg { width: 21px; height: 21px; }
+  .tool .kbd {
+    position: absolute; bottom: 2px; right: 5px; font-family: var(--mono);
+    font-size: 8px; color: var(--ink-dim); opacity: .7;
+  }
+  .tool-sep { height: 1px; background: var(--panel-border); margin: 2px 4px; }
+  .tool[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%) translateX(-4px);
+    background: rgba(20, 41, 63, 0.95); border: 1px solid var(--panel-border); color: var(--ink);
+    font-size: 11px; font-family: var(--mono); letter-spacing: .05em;
+    padding: 6px 10px; border-radius: 8px; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .18s var(--ease), transform .18s var(--ease);
+    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  }
+  .tool:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+  /* ---------- Bottom console ---------- */
+  #console {
+    position: fixed; bottom: 18px; left: 50%; z-index: 10;
+    display: flex; align-items: center; gap: 22px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 18px; padding: 14px 22px; backdrop-filter: blur(14px);
+    box-shadow: var(--panel-glow);
+    max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center;
+    animation: riseC .7s var(--ease) .18s both;
+    transform: translateX(-50%);
+  }
+  .dial { display: flex; flex-direction: column; gap: 8px; min-width: 152px; }
+  .dial-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .dial label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .dial output {
+    font-family: var(--mono); font-size: 11px; color: var(--cyan);
+    transition: text-shadow .2s var(--ease);
+  }
+  #windOut { color: var(--amber); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: rgba(126,190,228,.22); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid #0b1826;
+    box-shadow: 0 0 0 1px rgba(111,211,255,.5), 0 0 12px rgba(111,211,255,.4);
+    transition: transform .15s var(--ease), box-shadow .15s var(--ease);
+  }
+  input[type=range]:hover::-webkit-slider-thumb {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 1px rgba(111,211,255,.7), 0 0 18px rgba(111,211,255,.6);
+  }
+  #wind::-webkit-slider-thumb {
+    background: var(--amber);
+    box-shadow: 0 0 0 1px rgba(255,180,84,.5), 0 0 12px rgba(255,180,84,.4);
+  }
+  #wind:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 1px rgba(255,180,84,.7), 0 0 18px rgba(255,180,84,.6);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 15px; height: 15px; border-radius: 50%; background: var(--cyan);
+    border: 2px solid #0b1826;
+  }
+  #wind::-moz-range-thumb { background: var(--amber); }
+
+  .console-sep { width: 1px; align-self: stretch; background: var(--panel-border); }
+
+  .btns { display: flex; gap: 8px; }
+  .btn {
+    height: 42px; min-width: 42px; padding: 0 13px; border-radius: 11px;
+    border: 1px solid var(--panel-border); background: rgba(111,211,255,.05);
+    color: var(--ink-dim); cursor: pointer; display: inline-flex; align-items: center;
+    justify-content: center; gap: 7px; font-family: var(--mono); font-size: 11px;
+    letter-spacing: .08em;
+    transition: color .18s var(--ease), background .18s var(--ease),
+                border-color .18s var(--ease), transform .18s var(--ease),
+                box-shadow .18s var(--ease);
+  }
+  .btn:hover { color: var(--ink); background: rgba(111,211,255,.1); transform: translateY(-1px); }
+  .btn:active { transform: scale(0.95); }
+  .btn.on {
+    color: var(--amber); border-color: rgba(255,180,84,.45); background: rgba(255,180,84,.1);
+    box-shadow: 0 0 14px rgba(255,180,84,.2);
+  }
+  .btn svg { width: 17px; height: 17px; }
+
+  /* ---------- Hint ---------- */
+  #hint {
+    position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%); z-index: 9;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    color: var(--ink-dim); user-select: none; pointer-events: none;
+    transition: opacity .7s var(--ease); text-transform: uppercase;
+    animation: riseC .7s var(--ease) .5s both;
+  }
+  #hint.hide { opacity: 0; }
+
+  /* ---------- Responsive: toolbar goes horizontal ---------- */
+  @media (max-width: 760px) {
+    #tools {
+      left: 50%; top: auto; bottom: 96px; transform: translateX(-50%);
+      flex-direction: row; padding: 7px; gap: 4px; border-radius: 14px;
+      animation: riseC .7s var(--ease) .12s both;
+    }
+    .tool { width: 42px; height: 42px; }
+    .tool[data-tip]::after { display: none; }
+    .tool-sep { width: 1px; height: auto; margin: 4px 2px; }
+    #console { padding: 10px 14px; gap: 12px; bottom: 12px; border-radius: 14px; }
+    .dial { min-width: 118px; }
+    .btn { height: 38px; min-width: 38px; padding: 0 10px; }
+    header { top: 12px; left: 16px; }
+    header h1 { font-size: 14px; }
+    #hud { top: 12px; right: 14px; padding: 8px 11px; font-size: 10px; gap: 2px 10px; }
+    #hint { bottom: 152px; font-size: 10px; }
+  }
+  @media (max-width: 420px) {
+    .dial { min-width: 100px; }
+    #hud .k:nth-child(5), #hud .v:nth-child(6) { display: none; } /* hide gravity row on tiny screens */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="world"></canvas>
+<div id="vignette"></div>
+
+<header>
+  <h1>Kine<span>tics</span></h1>
+  <p>Physics sandbox · Matter.js</p>
+</header>
+
+<div id="hud">
+  <span class="k">fps</span>     <span class="v good" id="hudFps">60</span>
+  <span class="k">bodies</span>  <span class="v" id="hudCount">0</span>
+  <span class="k">gravity</span> <span class="v" id="hudGrav">1.00 g</span>
+  <span class="k">sim</span>     <span class="v" id="hudSpeed">1.00×</span>
+  <span id="hudState">&nbsp;</span>
+</div>
+
+<div id="tools">
+  <button class="tool active" data-tool="box" data-tip="Spawn boxes — click or hold">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5"/></svg>
+    <span class="kbd">1</span>
+  </button>
+  <button class="tool" data-tool="ball" data-tip="Spawn balls — click or hold">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.5"/></svg>
+    <span class="kbd">2</span>
+  </button>
+  <button class="tool" data-tool="tri" data-tip="Spawn triangles — click or hold">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 4.5 L20 19 L4 19 Z"/></svg>
+    <span class="kbd">3</span>
+  </button>
+  <div class="tool-sep"></div>
+  <button class="tool" data-tool="drag" data-tip="Drag objects">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11m0-3.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.3-3.2L4 13.5a1.6 1.6 0 0 1 2.7-1.6L9 14"/></svg>
+    <span class="kbd">4</span>
+  </button>
+  <button class="tool boom" data-tool="boom" data-tip="Detonate — click to explode (or right-click anytime)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 5.4l-1.6 4.2 4.6 1.2-4.2 2.4 2.6 4-4.8-.8L13.4 21l-2.6-4-3.6 2.8.8-4.8L3 14l4.4-2.2L5 7.6l4.6 1.2L12 3z"/></svg>
+    <span class="kbd">5</span>
+  </button>
+  <button class="tool danger" data-tool="delete" data-tip="Delete objects — click them">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M7 7l1 12.2a1 1 0 0 0 1 .8h6a1 1 0 0 0 1-.8L17 7M10 11v5M14 11v5"/></svg>
+    <span class="kbd">6</span>
+  </button>
+</div>
+
+<div id="console">
+  <div class="dial">
+    <div class="dial-head"><label for="gravity">Gravity</label><output id="gravOut">1.00 g</output></div>
+    <input type="range" id="gravity" min="-100" max="200" value="100">
+  </div>
+  <div class="dial">
+    <div class="dial-head"><label for="wind">Wind</label><output id="windOut">calm</output></div>
+    <input type="range" id="wind" min="-100" max="100" value="0">
+  </div>
+  <div class="console-sep"></div>
+  <div class="btns">
+    <button class="btn" id="pauseBtn" title="Pause (Space)">
+      <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+      <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>
+    </button>
+    <button class="btn" id="slowBtn" title="Slow motion (S)">0.25×</button>
+    <button class="btn" id="clearBtn" title="Clear all (C)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg>
+    </button>
+    <button class="btn" id="fsBtn" title="Fullscreen (F)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg>
+    </button>
+  </div>
+</div>
+
+<div id="hint">Click to drop · hold to pour · right-click to detonate</div>
+
+<script>
+(() => {
+  const { Engine, Bodies, Body, Composite, Mouse, MouseConstraint, Query, Events } = Matter;
+
+  // ================= Setup =================
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d');
+  let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2);
+
+  const engine = Engine.create({ enableSleeping: false });
+  engine.gravity.y = 1;
+  const world = engine.world;
+
+  const PALETTE = [
+    { fill: '#ff6b6b', edge: '#ffa3a3', glow: 'rgba(255,107,107,0.5)' },
+    { fill: '#4ecdc4', edge: '#9ceee8', glow: 'rgba(78,205,196,0.5)' },
+    { fill: '#ffd166', edge: '#ffe4a8', glow: 'rgba(255,209,102,0.5)' },
+    { fill: '#a78bfa', edge: '#cdbcfd', glow: 'rgba(167,139,250,0.5)' },
+    { fill: '#6fd3ff', edge: '#b4e8ff', glow: 'rgba(111,211,255,0.5)' },
+    { fill: '#ff9f68', edge: '#ffc9a6', glow: 'rgba(255,159,104,0.5)' },
+  ];
+
+  // ================= Walls =================
+  const WALL = 200;
+  let walls = [];
+  function buildWalls() {
+    walls.forEach(w => Composite.remove(world, w));
+    const opts = { isStatic: true, friction: 0.6, restitution: 0.1, label: 'wall' };
+    walls = [
+      Bodies.rectangle(W / 2, H + WALL / 2, W * 3, WALL, opts),
+      Bodies.rectangle(-WALL / 2, H / 2, WALL, H * 4, opts),
+      Bodies.rectangle(W + WALL / 2, H / 2, WALL, H * 4, opts),
+      Bodies.rectangle(W / 2, -H - WALL / 2, W * 3, WALL, opts),
+    ];
+    walls.forEach(w => Composite.add(world, w));
+  }
+
+  function resize() {
+    W = innerWidth; H = innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildWalls();
+    gridDirty = true;
+  }
+  addEventListener('resize', resize);
+
+  // ================= Pre-rendered grid layer =================
+  // Drawn once to an offscreen canvas — crosshair ticks at major
+  // intersections give the drafting-table look without per-frame cost.
+  const gridCanvas = document.createElement('canvas');
+  let gridDirty = true;
+  function renderGrid() {
+    gridCanvas.width = W * DPR; gridCanvas.height = H * DPR;
+    const g = gridCanvas.getContext('2d');
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    g.fillStyle = '#0b1826';
+    g.fillRect(0, 0, W, H);
+
+    const step = 44;
+    g.strokeStyle = 'rgba(126, 190, 228, 0.05)';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let x = step; x < W; x += step) { g.moveTo(x, 0); g.lineTo(x, H); }
+    for (let y = step; y < H; y += step) { g.moveTo(0, y); g.lineTo(W, y); }
+    g.stroke();
+
+    g.strokeStyle = 'rgba(126, 190, 228, 0.09)';
+    g.beginPath();
+    for (let x = step * 5; x < W; x += step * 5) { g.moveTo(x, 0); g.lineTo(x, H); }
+    for (let y = step * 5; y < H; y += step * 5) { g.moveTo(0, y); g.lineTo(W, y); }
+    g.stroke();
+
+    // crosshair ticks at major intersections
+    g.strokeStyle = 'rgba(126, 190, 228, 0.22)';
+    g.beginPath();
+    for (let x = step * 5; x < W; x += step * 5) {
+      for (let y = step * 5; y < H; y += step * 5) {
+        g.moveTo(x - 4, y); g.lineTo(x + 4, y);
+        g.moveTo(x, y - 4); g.lineTo(x, y + 4);
+      }
+    }
+    g.stroke();
+    gridDirty = false;
+  }
+
+  resize();
+
+  // ================= Spawning =================
+  function makeBody(type, x, y, opts = {}) {
+    const c = PALETTE[(Math.random() * PALETTE.length) | 0];
+    const common = { restitution: 0.35, friction: 0.4, frictionAir: 0.001 };
+    let b;
+    if (type === 'ball') {
+      const r = 12 + Math.random() * 20;
+      b = Bodies.circle(x, y, r, { ...common, restitution: 0.55 });
+      b.plugin = { shape: 'ball', r, ...c };
+    } else if (type === 'tri') {
+      const r = 18 + Math.random() * 22;
+      b = Bodies.polygon(x, y, 3, r, common);
+      b.plugin = { shape: 'tri', r, ...c };
+    } else {
+      const w = 24 + Math.random() * 36, h = 24 + Math.random() * 36;
+      b = Bodies.rectangle(x, y, w, h, { ...common, chamfer: { radius: 3 } });
+      b.plugin = { shape: 'box', w, h, ...c };
+    }
+    Body.setVelocity(b, { x: (Math.random() - 0.5) * 2, y: 0 });
+    Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.08);
+    b.plugin.born = performance.now();
+    Composite.add(world, b);
+    if (!opts.quiet) spawnRing(x, y, c.fill);
+    return b;
+  }
+
+  function dynamicBodies() {
+    return Composite.allBodies(world).filter(b => !b.isStatic);
+  }
+
+  // ================= Particle system =================
+  // One array, typed particles: spark (square ember), dot (round),
+  // ring (expanding circle), flash (radial burst glow).
+  const particles = [];
+
+  function spawnRing(x, y, color) {
+    particles.push({ type: 'ring', x, y, r: 4, vr: 1.6, life: 1, decay: 0.07, color, width: 1.5 });
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      particles.push({
+        type: 'dot', x, y,
+        vx: Math.cos(a) * (0.6 + Math.random() * 1.4),
+        vy: Math.sin(a) * (0.6 + Math.random() * 1.4),
+        g: 0.02, size: 1.5 + Math.random() * 1.5,
+        life: 1, decay: 0.045, color,
+      });
+    }
+  }
+
+  function deletePop(x, y, color) {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + Math.random() * 0.5;
+      const sp = 1.5 + Math.random() * 2.5;
+      particles.push({
+        type: 'spark', x, y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        g: 0.06, size: 2 + Math.random() * 2,
+        life: 1, decay: 0.035, color,
+      });
+    }
+    particles.push({ type: 'ring', x, y, r: 6, vr: 2.2, life: 1, decay: 0.09, color, width: 2 });
+  }
+
+  function collisionSpark(x, y, color, intensity) {
+    const n = Math.min(2 + (intensity | 0), 6);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 0.5 + Math.random() * intensity * 0.4;
+      particles.push({
+        type: 'dot', x, y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.5,
+        g: 0.05, size: 1 + Math.random() * 1.5,
+        life: 0.8, decay: 0.06, color,
+      });
+    }
+  }
+
+  // ================= Explosion =================
+  let shake = 0;
+  function explode(x, y) {
+    const RADIUS = 260, POWER = 0.09;
+    for (const b of dynamicBodies()) {
+      const dx = b.position.x - x, dy = b.position.y - y;
+      const d = Math.max(Math.hypot(dx, dy), 24);
+      if (d > RADIUS) continue;
+      const falloff = 1 - d / RADIUS;
+      const f = POWER * falloff * b.mass;
+      Body.applyForce(b, b.position, { x: (dx / d) * f, y: (dy / d) * f });
+      Body.setAngularVelocity(b, b.angularVelocity + (Math.random() - 0.5) * 0.3 * falloff);
+    }
+    // shockwave rings
+    particles.push({ type: 'ring', x, y, r: 10, vr: 9, life: 1, decay: 0.045, color: '#ffb454', width: 3 });
+    particles.push({ type: 'ring', x, y, r: 6, vr: 6, life: 1, decay: 0.05, color: '#ffe4a8', width: 1.5 });
+    // flash
+    particles.push({ type: 'flash', x, y, r: 90, life: 1, decay: 0.12, color: 'rgba(255,200,120,' });
+    // embers
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 2 + Math.random() * 7;
+      particles.push({
+        type: 'spark', x, y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        g: 0.08, size: 1.5 + Math.random() * 3,
+        life: 1, decay: 0.02 + Math.random() * 0.025,
+        color: ['#ffb454', '#ff9f68', '#ffd166', '#ffe4a8'][(Math.random() * 4) | 0],
+      });
+    }
+    shake = Math.min(shake + 9, 14);
+  }
+
+  function updateParticles(speed) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= p.decay * speed;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      if (p.type === 'ring' || p.type === 'flash') {
+        p.r += (p.vr || 0) * speed;
+      } else {
+        p.x += p.vx * speed; p.y += p.vy * speed;
+        p.vy += (p.g || 0) * speed;
+      }
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(p.life, 0);
+      if (p.type === 'ring') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = (p.width || 1.5) * p.life;
+        ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
+      } else if (p.type === 'flash') {
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+        grad.addColorStop(0, p.color + (0.55 * p.life) + ')');
+        grad.addColorStop(1, p.color + '0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      } else if (p.type === 'spark') {
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+        ctx.shadowBlur = 0;
+      } else { // dot
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ================= Collision sparks =================
+  Events.on(engine, 'collisionStart', ev => {
+    for (const pair of ev.pairs) {
+      const { bodyA, bodyB } = pair;
+      const rel = Math.hypot(
+        bodyA.velocity.x - bodyB.velocity.x,
+        bodyA.velocity.y - bodyB.velocity.y
+      );
+      if (rel < 6 || particles.length > 260) continue;
+      const dyn = bodyA.isStatic ? bodyB : bodyA;
+      const c = pair.collision.supports[0] || dyn.position;
+      collisionSpark(c.x, c.y, dyn.plugin?.edge || '#b4e8ff', rel - 5);
+    }
+  });
+
+  // ================= Tools & mouse =================
+  let tool = 'box';
+  const toolBtns = [...document.querySelectorAll('.tool')];
+  function setTool(t) {
+    tool = t;
+    toolBtns.forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+    canvas.classList.toggle('dragging', t === 'drag');
+    canvas.classList.toggle('deleting', t === 'delete');
+    canvas.classList.toggle('exploding', t === 'boom');
+    mouseConstraint.constraint.stiffness = t === 'drag' ? 0.12 : 0;
+  }
+  toolBtns.forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+  const mouse = Mouse.create(canvas);
+  mouse.pixelRatio = DPR;
+  const mouseConstraint = MouseConstraint.create(engine, {
+    mouse, constraint: { stiffness: 0.12, damping: 0.08, render: { visible: false } }
+  });
+  mouseConstraint.constraint.stiffness = 0;
+  Composite.add(world, mouseConstraint);
+
+  let pointerDown = false, pointerPos = { x: 0, y: 0 }, lastSpawn = 0;
+  const hint = document.getElementById('hint');
+  let interacted = false;
+
+  function canvasPoint(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  function pointerStart(e) {
+    if (e.button === 2) return; // right-click handled separately
+    pointerDown = true;
+    pointerPos = canvasPoint(e);
+    if (!interacted) { interacted = true; hint.classList.add('hide'); }
+    if (tool === 'delete') {
+      const hit = Query.point(dynamicBodies(), pointerPos)[0];
+      if (hit) { deletePop(hit.position.x, hit.position.y, hit.plugin.fill); Composite.remove(world, hit); }
+    } else if (tool === 'boom') {
+      explode(pointerPos.x, pointerPos.y);
+    } else if (tool !== 'drag') {
+      makeBody(tool, pointerPos.x, pointerPos.y);
+      lastSpawn = performance.now();
+    }
+  }
+  function pointerMove(e) { pointerPos = canvasPoint(e); }
+  function pointerEnd() { pointerDown = false; }
+
+  canvas.addEventListener('mousedown', pointerStart);
+  canvas.addEventListener('mousemove', pointerMove);
+  addEventListener('mouseup', pointerEnd);
+  canvas.addEventListener('touchstart', e => pointerStart(e), { passive: true });
+  canvas.addEventListener('touchmove', e => pointerMove(e), { passive: true });
+  addEventListener('touchend', pointerEnd);
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const p = canvasPoint(e);
+    explode(p.x, p.y);
+    if (!interacted) { interacted = true; hint.classList.add('hide'); }
+  });
+
+  // ================= Controls =================
+  const gravitySlider = document.getElementById('gravity');
+  const windSlider = document.getElementById('wind');
+  const gravOut = document.getElementById('gravOut');
+  const windOut = document.getElementById('windOut');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const slowBtn = document.getElementById('slowBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const fsBtn = document.getElementById('fsBtn');
+  const pauseIcon = document.getElementById('pauseIcon');
+  const playIcon = document.getElementById('playIcon');
+  const hudFps = document.getElementById('hudFps');
+  const hudCount = document.getElementById('hudCount');
+  const hudGrav = document.getElementById('hudGrav');
+  const hudSpeed = document.getElementById('hudSpeed');
+  const hudState = document.getElementById('hudState');
+
+  let paused = false, slow = false, wind = 0;
+
+  gravitySlider.addEventListener('input', () => {
+    const g = gravitySlider.value / 100;
+    engine.gravity.y = g;
+    gravOut.textContent = g.toFixed(2) + ' g';
+    hudGrav.textContent = g.toFixed(2) + ' g';
+  });
+  windSlider.addEventListener('input', () => {
+    wind = windSlider.value / 100;
+    windOut.textContent =
+      wind === 0 ? 'calm' :
+      (wind > 0 ? '→ ' : '← ') + Math.abs(wind).toFixed(2);
+  });
+  windSlider.addEventListener('dblclick', () => {
+    windSlider.value = 0; wind = 0; windOut.textContent = 'calm';
+  });
+
+  function setPaused(p) {
+    paused = p;
+    pauseIcon.style.display = p ? 'none' : '';
+    playIcon.style.display = p ? '' : 'none';
+    pauseBtn.classList.toggle('on', p);
+  }
+  function setSlow(s) {
+    slow = s;
+    engine.timing.timeScale = s ? 0.25 : 1;
+    slowBtn.classList.toggle('on', s);
+  }
+  pauseBtn.addEventListener('click', () => setPaused(!paused));
+  slowBtn.addEventListener('click', () => setSlow(!slow));
+  clearBtn.addEventListener('click', () => {
+    dynamicBodies().forEach(b => { deletePop(b.position.x, b.position.y, b.plugin?.fill || '#6fd3ff'); Composite.remove(world, b); });
+  });
+  fsBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  });
+
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
+    else if (e.key === '1') setTool('box');
+    else if (e.key === '2') setTool('ball');
+    else if (e.key === '3') setTool('tri');
+    else if (e.key === '4') setTool('drag');
+    else if (e.key === '5') setTool('boom');
+    else if (e.key === '6') setTool('delete');
+    else if (e.key.toLowerCase() === 's') setSlow(!slow);
+    else if (e.key.toLowerCase() === 'c') clearBtn.click();
+    else if (e.key.toLowerCase() === 'f') fsBtn.click();
+  });
+
+  // ================= Wind streaks =================
+  const streaks = [];
+  function updateStreaks(speed) {
+    const strength = Math.abs(wind);
+    if (strength > 0.02 && streaks.length < 60 && Math.random() < strength * 1.4) {
+      streaks.push({
+        x: wind > 0 ? -40 : W + 40,
+        y: Math.random() * H,
+        len: 30 + Math.random() * 60 * strength * 3,
+        speed: (4 + Math.random() * 10) * strength * 6 * Math.sign(wind),
+        alpha: 0.08 + Math.random() * 0.16,
+      });
+    }
+    for (let i = streaks.length - 1; i >= 0; i--) {
+      const s = streaks[i];
+      s.x += s.speed * speed;
+      if (s.x < -120 || s.x > W + 120) streaks.splice(i, 1);
+    }
+  }
+
+  // ================= Render =================
+  function drawBody(b) {
+    const p = b.plugin || {};
+    const now = performance.now();
+    const age = Math.min((now - (p.born || 0)) / 260, 1);
+    // pop-in: overshoot ease (back-out)
+    const k = 1.7;
+    const e = age === 1 ? 1 : 1 + (k + 1) * Math.pow(age - 1, 3) + k * Math.pow(age - 1, 2);
+    const scale = 0.4 + 0.6 * e;
+
+    // velocity-based glow: fast objects burn brighter
+    const v = Math.hypot(b.velocity.x, b.velocity.y);
+    const glowAmt = Math.min(6 + v * 1.6, 26);
+
+    ctx.save();
+    ctx.translate(b.position.x, b.position.y);
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = p.fill || '#6fd3ff';
+    ctx.strokeStyle = p.edge || '#b4e8ff';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = p.glow || 'rgba(111,211,255,0.5)';
+    ctx.shadowBlur = glowAmt;
+
+    if (p.shape === 'ball') {
+      ctx.rotate(b.angle);
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath();
+      ctx.arc(-p.r * 0.32, -p.r * 0.32, p.r * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(11,24,38,0.4)';
+      ctx.beginPath();
+      ctx.arc(p.r * 0.5, 0, p.r * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // vertices are world-space; ctx is translated (not rotated), so
+      // drawing (vertex - position) reproduces the body's rotation exactly
+      ctx.beginPath();
+      const v2 = b.vertices;
+      for (let i = 0; i < v2.length; i++) {
+        const lx = v2[i].x - b.position.x, ly = v2[i].y - b.position.y;
+        i === 0 ? ctx.moveTo(lx, ly) : ctx.lineTo(lx, ly);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      // inner facet highlight
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath();
+      ctx.moveTo((v2[0].x - b.position.x) * 0.72, (v2[0].y - b.position.y) * 0.72);
+      ctx.lineTo((v2[1].x - b.position.x) * 0.72, (v2[1].y - b.position.y) * 0.72);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawStreaks() {
+    ctx.save();
+    ctx.strokeStyle = '#ffb454';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(255,180,84,0.6)';
+    ctx.shadowBlur = 6;
+    for (const s of streaks) {
+      ctx.globalAlpha = s.alpha;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.len * Math.sign(wind || 1), s.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDragLink() {
+    const c = mouseConstraint.constraint;
+    if (tool === 'drag' && c.bodyB) {
+      const a = c.bodyB.position;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(111,211,255,0.75)';
+      ctx.shadowColor = 'rgba(111,211,255,0.6)';
+      ctx.shadowBlur = 8;
+      ctx.setLineDash([4, 5]);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(a.x + c.pointB.x, a.y + c.pointB.y);
+      ctx.lineTo(mouse.position.x, mouse.position.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#6fd3ff';
+      ctx.beginPath(); ctx.arc(mouse.position.x, mouse.position.y, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ================= FPS =================
+  let fpsFrames = 0, fpsLast = performance.now(), fpsValue = 60;
+
+  // ================= Main loop =================
+  const MAX_BODIES = 320;
+  let lastT = performance.now();
+
+  function loop(t) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(t - lastT, 33);
+    lastT = t;
+    const simSpeed = paused ? 0 : slow ? 0.25 : 1;
+
+    // held pointer pours objects
+    if (pointerDown && (tool === 'box' || tool === 'ball' || tool === 'tri') && t - lastSpawn > 90) {
+      makeBody(tool, pointerPos.x + (Math.random() - 0.5) * 14, pointerPos.y + (Math.random() - 0.5) * 14);
+      lastSpawn = t;
+    }
+    if (pointerDown && tool === 'delete') {
+      const hit = Query.point(dynamicBodies(), pointerPos)[0];
+      if (hit) { deletePop(hit.position.x, hit.position.y, hit.plugin.fill); Composite.remove(world, hit); }
+    }
+
+    const bodies = dynamicBodies();
+    if (bodies.length > MAX_BODIES) {
+      bodies.slice(0, bodies.length - MAX_BODIES).forEach(b => Composite.remove(world, b));
+    }
+
+    if (!paused) {
+      if (wind !== 0) {
+        const f = wind * 0.00035;
+        for (const b of bodies) Body.applyForce(b, b.position, { x: f * b.mass, y: 0 });
+      }
+      Engine.update(engine, dt);
+    }
+
+    updateStreaks(simSpeed);
+    updateParticles(Math.max(simSpeed, 0.25)); // particles keep drifting a bit even when paused-adjacent
+
+    // ---- render ----
+    if (gridDirty) renderGrid();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (shake > 0.1) {
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+      shake *= 0.86;
+    } else shake = 0;
+
+    ctx.drawImage(gridCanvas, 0, 0, W, H);
+    drawStreaks();
+    for (const b of bodies) drawBody(b);
+    drawParticles();
+    drawDragLink();
+
+    // ---- HUD ----
+    fpsFrames++;
+    if (t - fpsLast >= 500) {
+      fpsValue = Math.round(fpsFrames * 1000 / (t - fpsLast));
+      fpsFrames = 0; fpsLast = t;
+      hudFps.textContent = fpsValue;
+      hudFps.className = 'v ' + (fpsValue >= 50 ? 'good' : 'warn');
+    }
+    hudCount.textContent = bodies.length;
+    hudSpeed.textContent = paused ? '0.00×' : slow ? '0.25×' : '1.00×';
+    hudState.innerHTML = paused ? 'paused' : slow ? 'slow motion' : '&nbsp;';
+  }
+  requestAnimationFrame(loop);
+
+  // ================= Opening scene =================
+  setTimeout(() => {
+    const types = ['box', 'ball', 'tri'];
+    for (let i = 0; i < 12; i++) {
+      setTimeout(() => makeBody(types[i % 3], W * 0.25 + Math.random() * W * 0.5, -30 - Math.random() * 120, { quiet: true }), i * 90);
+    }
+  }, 350);
+})();
+</script>
+</body>
+</html>
