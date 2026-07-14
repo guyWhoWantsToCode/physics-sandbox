@@ -393,6 +393,9 @@
     <button class="btn bh" id="bhBtn" title="Black hole mode (B)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M21 12a9 9 0 1 1-9-9"/><path d="M6.8 12A5.2 5.2 0 1 0 12 6.8"/></svg>
     </button>
+    <button class="btn" id="resetBtn" title="Reset dials to defaults (R)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h9M17 17h3"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="17" r="2"/></svg>
+    </button>
     <button class="btn" id="clearBtn" title="Clear all (C)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg>
     </button>
@@ -986,6 +989,26 @@
   }
   bhBtn.addEventListener('click', () => setBhMode(!bhMode));
 
+  // reset every dial to its original value. Setting .value and dispatching
+  // 'input' reuses each slider's existing handler, so state, readouts, and
+  // live bodies (e.g. frictionAir) all update through one code path.
+  const resetBtn = document.getElementById('resetBtn');
+  function resetDials() {
+    const defaults = [
+      [gravitySlider, 100], // 1.00 g
+      [windSlider, 0],      // calm
+      [airSlider, 0],       // 0%
+      [massSlider, 100],    // 1.00×
+      [boomSlider, 100],    // 100%
+      [waterSlider, 0],     // dry
+    ];
+    for (const [slider, value] of defaults) {
+      slider.value = value;
+      slider.dispatchEvent(new Event('input'));
+    }
+  }
+  resetBtn.addEventListener('click', resetDials);
+
   function setPaused(p) {
     paused = p;
     pauseIcon.style.display = p ? 'none' : '';
@@ -1018,6 +1041,7 @@
     else if (e.key === '6') setTool('delete');
     else if (e.key.toLowerCase() === 's') setSlow(!slow);
     else if (e.key.toLowerCase() === 'b') setBhMode(!bhMode);
+    else if (e.key.toLowerCase() === 'r') resetDials();
     else if (e.key.toLowerCase() === 'c') clearBtn.click();
     else if (e.key.toLowerCase() === 'f') fsBtn.click();
   });
