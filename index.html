@@ -16,6 +16,9 @@
     --cyan: #6fd3ff;
     --amber: #ffb454;
     --coral: #ff6b6b;
+    --green: #5eee9b;
+    --violet: #a78bfa;
+    --water: #4aa8ff;
     --ease: cubic-bezier(0.22, 1, 0.36, 1);
     --mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
     --sans: "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
@@ -58,22 +61,48 @@
     color: var(--ink-dim); margin-top: 4px; text-transform: uppercase;
   }
 
-  /* ---------- HUD readout ---------- */
+  /* ---------- Telemetry panel (collapsible) ---------- */
   #hud {
     position: fixed; top: 18px; right: 22px; z-index: 10;
-    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
-    color: var(--ink-dim); user-select: none; pointer-events: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+    user-select: none; width: 212px; overflow: hidden;
     background: var(--panel); border: 1px solid var(--panel-border);
-    border-radius: 12px; padding: 10px 14px; backdrop-filter: blur(14px);
+    border-radius: 12px; backdrop-filter: blur(14px);
     box-shadow: var(--panel-glow);
-    display: grid; grid-template-columns: auto auto; gap: 3px 14px;
     animation: rise .7s var(--ease) .08s both;
   }
-  #hud .k { text-align: left; }
-  #hud .v { text-align: right; color: var(--ink); font-weight: 500; min-width: 52px; }
-  #hud .v.good { color: var(--cyan); }
-  #hud .v.warn { color: var(--amber); }
-  #hud #hudState { grid-column: 1 / -1; text-align: right; color: var(--amber); height: 14px; }
+  #statsHead {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 9px 12px; background: transparent; border: 0;
+    color: var(--ink); font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.22em; text-transform: uppercase; cursor: pointer;
+    transition: background .18s var(--ease);
+  }
+  #statsHead:hover { background: rgba(111, 211, 255, 0.06); }
+  #statsHead .head-l { display: flex; align-items: center; }
+  #statsHead .led {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 8px var(--green); margin-right: 8px; flex: none;
+  }
+  #statsHead .chev { transition: transform .3s var(--ease); color: var(--ink-dim); flex: none; }
+  #hud.collapsed #statsHead .chev { transform: rotate(-90deg); }
+  #statsBody {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+    padding: 4px 12px 11px; max-height: 300px; opacity: 1;
+    transition: max-height .35s var(--ease), opacity .28s var(--ease),
+                padding .35s var(--ease);
+  }
+  #hud.collapsed #statsBody {
+    max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+  }
+  #statsBody .k { color: var(--ink); font-weight: 400; white-space: nowrap; }
+  #statsBody .v {
+    text-align: right; color: var(--green); font-weight: 500;
+    min-width: 76px; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 10px rgba(94, 238, 155, 0.25);
+  }
+  #statsBody .v.warn { color: var(--amber); text-shadow: 0 0 10px rgba(255, 180, 84, 0.25); }
+  #statsBody #hudState { grid-column: 1 / -1; text-align: right; color: var(--amber); height: 13px; }
 
   /* ---------- Tool rail ---------- */
   #tools {
@@ -130,15 +159,19 @@
   /* ---------- Bottom console ---------- */
   #console {
     position: fixed; bottom: 18px; left: 50%; z-index: 10;
-    display: flex; align-items: center; gap: 22px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
     background: var(--panel); border: 1px solid var(--panel-border);
-    border-radius: 18px; padding: 14px 22px; backdrop-filter: blur(14px);
+    border-radius: 18px; padding: 14px 22px 15px; backdrop-filter: blur(14px);
     box-shadow: var(--panel-glow);
-    max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center;
+    width: 580px; max-width: calc(100vw - 24px);
     animation: riseC .7s var(--ease) .18s both;
     transform: translateX(-50%);
   }
-  .dial { display: flex; flex-direction: column; gap: 8px; min-width: 152px; }
+  #dials {
+    display: grid; grid-template-columns: repeat(3, minmax(148px, 1fr));
+    gap: 11px 20px;
+  }
+  .dial { display: flex; flex-direction: column; gap: 7px; }
   .dial-head { display: flex; justify-content: space-between; align-items: baseline; }
   .dial label {
     font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
@@ -149,6 +182,10 @@
     transition: text-shadow .2s var(--ease);
   }
   #windOut { color: var(--amber); }
+  #airOut { color: #4ecdc4; }
+  #massOut { color: #cbb2ff; }
+  #boomOut { color: #ff8a8a; }
+  #waterOut { color: #5ab0ff; }
   input[type=range] {
     -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
     background: rgba(126,190,228,.22); border-radius: 2px; outline: none; cursor: pointer;
@@ -175,10 +212,30 @@
     border: 2px solid #0b1826;
   }
   #wind::-moz-range-thumb { background: var(--amber); }
+  #air::-webkit-slider-thumb {
+    background: #4ecdc4;
+    box-shadow: 0 0 0 1px rgba(78,205,196,.5), 0 0 12px rgba(78,205,196,.4);
+  }
+  #massMul::-webkit-slider-thumb {
+    background: #a78bfa;
+    box-shadow: 0 0 0 1px rgba(167,139,250,.5), 0 0 12px rgba(167,139,250,.4);
+  }
+  #boomPow::-webkit-slider-thumb {
+    background: #ff6b6b;
+    box-shadow: 0 0 0 1px rgba(255,107,107,.5), 0 0 12px rgba(255,107,107,.4);
+  }
+  #water::-webkit-slider-thumb {
+    background: #5ab0ff;
+    box-shadow: 0 0 0 1px rgba(90,176,255,.5), 0 0 12px rgba(90,176,255,.4);
+  }
+  #air::-moz-range-thumb { background: #4ecdc4; }
+  #massMul::-moz-range-thumb { background: #a78bfa; }
+  #boomPow::-moz-range-thumb { background: #ff6b6b; }
+  #water::-moz-range-thumb { background: #5ab0ff; }
 
-  .console-sep { width: 1px; align-self: stretch; background: var(--panel-border); }
+  .console-hr { height: 1px; background: var(--panel-border); }
 
-  .btns { display: flex; gap: 8px; }
+  .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .btn {
     height: 42px; min-width: 42px; padding: 0 13px; border-radius: 11px;
     border: 1px solid var(--panel-border); background: rgba(111,211,255,.05);
@@ -195,11 +252,15 @@
     color: var(--amber); border-color: rgba(255,180,84,.45); background: rgba(255,180,84,.1);
     box-shadow: 0 0 14px rgba(255,180,84,.2);
   }
+  .btn.bh.on {
+    color: #cbb2ff; border-color: rgba(167,139,250,.5); background: rgba(167,139,250,.12);
+    box-shadow: 0 0 16px rgba(167,139,250,.3);
+  }
   .btn svg { width: 17px; height: 17px; }
 
   /* ---------- Hint ---------- */
   #hint {
-    position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%); z-index: 9;
+    position: fixed; bottom: 216px; left: 50%; transform: translateX(-50%); z-index: 9;
     font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
     color: var(--ink-dim); user-select: none; pointer-events: none;
     transition: opacity .7s var(--ease); text-transform: uppercase;
@@ -210,24 +271,26 @@
   /* ---------- Responsive: toolbar goes horizontal ---------- */
   @media (max-width: 760px) {
     #tools {
-      left: 50%; top: auto; bottom: 96px; transform: translateX(-50%);
+      left: 50%; top: auto; bottom: 248px; transform: translateX(-50%);
       flex-direction: row; padding: 7px; gap: 4px; border-radius: 14px;
       animation: riseC .7s var(--ease) .12s both;
     }
     .tool { width: 42px; height: 42px; }
     .tool[data-tip]::after { display: none; }
     .tool-sep { width: 1px; height: auto; margin: 4px 2px; }
-    #console { padding: 10px 14px; gap: 12px; bottom: 12px; border-radius: 14px; }
-    .dial { min-width: 118px; }
+    #console { padding: 10px 14px 12px; gap: 10px; bottom: 12px; border-radius: 14px; width: calc(100vw - 24px); }
+    #dials { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
     .btn { height: 38px; min-width: 38px; padding: 0 10px; }
     header { top: 12px; left: 16px; }
     header h1 { font-size: 14px; }
-    #hud { top: 12px; right: 14px; padding: 8px 11px; font-size: 10px; gap: 2px 10px; }
-    #hint { bottom: 152px; font-size: 10px; }
+    #hud { top: 12px; right: 14px; width: 182px; font-size: 10px; }
+    #statsBody { gap: 3px 10px; }
+    #statsBody .v { min-width: 64px; }
+    #hint { display: none; }
   }
   @media (max-width: 420px) {
-    .dial { min-width: 100px; }
-    #hud .k:nth-child(5), #hud .v:nth-child(6) { display: none; } /* hide gravity row on tiny screens */
+    #hud { width: 168px; }
+    .dial label { letter-spacing: 0.12em; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -246,11 +309,23 @@
 </header>
 
 <div id="hud">
-  <span class="k">fps</span>     <span class="v good" id="hudFps">60</span>
-  <span class="k">bodies</span>  <span class="v" id="hudCount">0</span>
-  <span class="k">gravity</span> <span class="v" id="hudGrav">1.00 g</span>
-  <span class="k">sim</span>     <span class="v" id="hudSpeed">1.00×</span>
-  <span id="hudState">&nbsp;</span>
+  <button id="statsHead" aria-expanded="true" aria-controls="statsBody" title="Toggle telemetry">
+    <span class="head-l"><span class="led"></span>Telemetry</span>
+    <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <div id="statsBody">
+    <span class="k">fps</span>              <span class="v" id="hudFps">60</span>
+    <span class="k">objects</span>          <span class="v" id="hudCount">0</span>
+    <span class="k">total mass</span>       <span class="v" id="hudMass">0</span>
+    <span class="k">avg velocity</span>     <span class="v" id="hudAvgV">0.00</span>
+    <span class="k">max velocity</span>     <span class="v" id="hudMaxV">0.00</span>
+    <span class="k">kinetic E</span>        <span class="v" id="hudKE">0</span>
+    <span class="k">potential E</span>      <span class="v" id="hudPE">0</span>
+    <span class="k">runtime</span>          <span class="v" id="hudTime">00:00.0</span>
+    <span class="k">gravity</span>          <span class="v" id="hudGrav">1.00 g</span>
+    <span class="k">sim</span>              <span class="v" id="hudSpeed">1.00×</span>
+    <span id="hudState">&nbsp;</span>
+  </div>
 </div>
 
 <div id="tools">
@@ -282,21 +357,42 @@
 </div>
 
 <div id="console">
-  <div class="dial">
-    <div class="dial-head"><label for="gravity">Gravity</label><output id="gravOut">1.00 g</output></div>
-    <input type="range" id="gravity" min="-100" max="200" value="100">
+  <div id="dials">
+    <div class="dial">
+      <div class="dial-head"><label for="gravity">Gravity</label><output id="gravOut">1.00 g</output></div>
+      <input type="range" id="gravity" min="-100" max="200" value="100">
+    </div>
+    <div class="dial">
+      <div class="dial-head"><label for="wind">Wind</label><output id="windOut">calm</output></div>
+      <input type="range" id="wind" min="-100" max="100" value="0">
+    </div>
+    <div class="dial">
+      <div class="dial-head"><label for="air">Air Resist</label><output id="airOut">0%</output></div>
+      <input type="range" id="air" min="0" max="100" value="0">
+    </div>
+    <div class="dial">
+      <div class="dial-head"><label for="massMul">Mass</label><output id="massOut">1.00×</output></div>
+      <input type="range" id="massMul" min="25" max="500" value="100">
+    </div>
+    <div class="dial">
+      <div class="dial-head"><label for="boomPow">Explosion</label><output id="boomOut">100%</output></div>
+      <input type="range" id="boomPow" min="10" max="300" value="100">
+    </div>
+    <div class="dial">
+      <div class="dial-head"><label for="water">Water</label><output id="waterOut">dry</output></div>
+      <input type="range" id="water" min="0" max="100" value="0">
+    </div>
   </div>
-  <div class="dial">
-    <div class="dial-head"><label for="wind">Wind</label><output id="windOut">calm</output></div>
-    <input type="range" id="wind" min="-100" max="100" value="0">
-  </div>
-  <div class="console-sep"></div>
+  <div class="console-hr"></div>
   <div class="btns">
     <button class="btn" id="pauseBtn" title="Pause (Space)">
       <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
       <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>
     </button>
     <button class="btn" id="slowBtn" title="Slow motion (S)">0.25×</button>
+    <button class="btn bh" id="bhBtn" title="Black hole mode (B)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M21 12a9 9 0 1 1-9-9"/><path d="M6.8 12A5.2 5.2 0 1 0 12 6.8"/></svg>
+    </button>
     <button class="btn" id="clearBtn" title="Clear all (C)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg>
     </button>
@@ -414,6 +510,11 @@
       b = Bodies.rectangle(x, y, w, h, { ...common, chamfer: { radius: 3 } });
       b.plugin = { shape: 'box', w, h, ...c };
     }
+    // spawn modifiers: mass multiplier scales weight (and therefore density,
+    // which the buoyancy code reads), and frictionAir inherits the live
+    // Air Resistance setting so new objects match existing ones
+    Body.setMass(b, b.mass * massMul);
+    b.frictionAir = airFriction();
     Body.setVelocity(b, { x: (Math.random() - 0.5) * 2, y: 0 });
     Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.08);
     b.plugin.born = performance.now();
@@ -476,7 +577,9 @@
   // ================= Explosion =================
   let shake = 0;
   function explode(x, y) {
-    const RADIUS = 260, POWER = 0.09;
+    // radius stays fixed — only the applied force scales with the
+    // Explosion Power slider (0.10× … 3.00×); particles are untouched
+    const RADIUS = 260, POWER = 0.09 * boomPower;
     for (const b of dynamicBodies()) {
       const dx = b.position.x - x, dy = b.position.y - y;
       const d = Math.max(Math.hypot(dx, dy), 24);
@@ -548,6 +651,166 @@
     ctx.globalAlpha = 1;
   }
 
+  // ================= Black hole =================
+  const BH_LIFE = 4000;   // lifetime in *sim* ms — freezes on pause
+  const BH_RADIUS = 360;  // influence radius, px
+  let blackHole = null;   // { x, y, age } — only one may exist at a time
+
+  function spawnBlackHole(x, y) {
+    // clicking again while one is active relocates it, which keeps the
+    // "only one black hole" rule without ignoring the user's input
+    blackHole = { x, y, age: 0 };
+  }
+
+  function applyBlackHole(b) {
+    const dx = blackHole.x - b.position.x, dy = blackHole.y - b.position.y;
+    const d = Math.hypot(dx, dy);
+    if (d > BH_RADIUS || d < 1) return;
+    // softened inverse-square: the force plateaus inside dc = 70 px, so a
+    // passing body keeps its tangential speed and whips around the core
+    // instead of snapping straight into the centre
+    const dc = Math.max(d, 70);
+    const pull = 0.012 * b.mass * (70 / dc) * (70 / dc);
+    const ux = dx / d, uy = dy / d;
+    // adding a 30% perpendicular component seeds angular momentum,
+    // which is what turns straight infall into visible orbits
+    Body.applyForce(b, b.position, {
+      x: ux * pull - uy * pull * 0.3,
+      y: uy * pull + ux * pull * 0.3,
+    });
+    // mild damping deep in the well prevents slingshot ejections
+    if (d < 90) Body.setVelocity(b, { x: b.velocity.x * 0.965, y: b.velocity.y * 0.965 });
+  }
+
+  function drawBlackHole() {
+    if (!blackHole) return;
+    const { x, y, age } = blackHole;
+    // fade in over the first 250ms, fade out over the final 600ms
+    const a = Math.min(age / 250, 1) * Math.min(Math.max(BH_LIFE - age, 0) / 600, 1);
+    if (a <= 0) return;
+    const rot = age * 0.004;
+
+    ctx.save();
+    ctx.globalAlpha = a;
+
+    // purple halo
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, 130);
+    halo.addColorStop(0, 'rgba(167,139,250,0.5)');
+    halo.addColorStop(0.4, 'rgba(140,90,240,0.18)');
+    halo.addColorStop(1, 'rgba(120,60,220,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x, y, 130, 0, Math.PI * 2); ctx.fill();
+
+    // swirling accretion arcs — three radii, alternating spin directions
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const r = 26 + i * 13;
+      const dir = i % 2 ? -1.3 : 1;
+      ctx.strokeStyle = i % 2 ? 'rgba(203,178,255,0.85)' : 'rgba(167,139,250,0.8)';
+      ctx.lineWidth = 2 - i * 0.4;
+      ctx.shadowColor = 'rgba(167,139,250,0.9)';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(x, y, r, rot * dir + i * 2.1, rot * dir + i * 2.1 + 3.6);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+
+    // event horizon: black core with a glowing violet rim
+    ctx.fillStyle = '#05010d';
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(203,178,255,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(167,139,250,1)'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ================= Fluid / buoyancy =================
+  // Matter's default body density is 0.001; water is set slightly denser,
+  // so stock objects float ~70% submerged, light (0.25×) ones bob high,
+  // and heavy (5×) ones sink — slowly, because of the water drag below.
+  const WATER_DENSITY = 0.0014;
+  const surfaceY = () => H * (1 - waterLevel);
+  const ripples = []; // expanding rings on the surface from splashes
+
+  function splash(x, y, power) {
+    ripples.push({ x, r: 5, life: 1 });
+    const n = Math.min(4 + (power | 0) * 2, 12);
+    for (let i = 0; i < n; i++) {
+      particles.push({
+        type: 'dot', x: x + (Math.random() - 0.5) * 16, y,
+        vx: (Math.random() - 0.5) * 1.6,
+        vy: -(0.8 + Math.random() * 0.5 * power),
+        g: 0.09, size: 1.5 + Math.random() * 2,
+        life: 1, decay: 0.04,
+        color: Math.random() < 0.5 ? '#8fdcff' : '#6fd3ff',
+      });
+    }
+  }
+
+  function applyBuoyancy(b, sy) {
+    const top = b.bounds.min.y, bot = b.bounds.max.y;
+    // submerged fraction estimated from the AABB — one min/max per body,
+    // stable and far cheaper than clipping the true polygon
+    const frac = Math.max(0, Math.min((bot - sy) / Math.max(bot - top, 1), 1));
+    const wasIn = !!b.plugin.inWater;
+    b.plugin.inWater = frac > 0;
+
+    // breaking the surface downward at speed kicks up a splash
+    if (!wasIn && frac > 0 && b.velocity.y > 2.2) {
+      splash(b.position.x, sy, Math.min(b.velocity.y * 0.5, 5));
+    }
+    if (frac === 0) return;
+
+    // Archimedes' upthrust: displaced area × water density × gravity.
+    // Body density above/below WATER_DENSITY decides sink vs float.
+    const g = engine.gravity.y * 0.001;
+    Body.applyForce(b, b.position, { x: 0, y: -WATER_DENSITY * b.area * frac * g });
+
+    // linear water drag on motion and spin, scaled by submersion —
+    // this makes heavy objects sink *slowly* and keeps the pool calm
+    Body.applyForce(b, b.position, {
+      x: -b.velocity.x * 0.00025 * frac * b.mass,
+      y: -b.velocity.y * 0.00025 * frac * b.mass,
+    });
+    Body.setAngularVelocity(b, b.angularVelocity * (1 - 0.03 * frac));
+  }
+
+  function drawWater() {
+    if (waterLevel <= 0) return;
+    const sy = surfaceY();
+
+    // body of water — drawn over the objects so they read as submerged
+    const grad = ctx.createLinearGradient(0, sy, 0, H);
+    grad.addColorStop(0, 'rgba(70, 150, 230, 0.14)');
+    grad.addColorStop(1, 'rgba(25, 70, 140, 0.30)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, sy, W, H - sy);
+
+    // calm surface line — stays flat unless splashes disturb it
+    ctx.strokeStyle = 'rgba(140, 200, 255, 0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(111, 211, 255, 0.6)';
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // splash ripples: flattened ellipses expanding along the surface
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const rp = ripples[i];
+      rp.r += 1.6; rp.life -= 0.03;
+      if (rp.life <= 0) { ripples.splice(i, 1); continue; }
+      ctx.globalAlpha = rp.life * 0.6;
+      ctx.strokeStyle = '#b4e8ff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(rp.x, sy, rp.r, rp.r * 0.22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // ================= Collision sparks =================
   Events.on(engine, 'collisionStart', ev => {
     for (const pair of ev.pairs) {
@@ -572,7 +835,7 @@
     canvas.classList.toggle('dragging', t === 'drag');
     canvas.classList.toggle('deleting', t === 'delete');
     canvas.classList.toggle('exploding', t === 'boom');
-    mouseConstraint.constraint.stiffness = t === 'drag' ? 0.12 : 0;
+    mouseConstraint.constraint.stiffness = (t === 'drag' && !bhMode) ? 0.12 : 0;
   }
   toolBtns.forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 
@@ -599,6 +862,8 @@
     pointerDown = true;
     pointerPos = canvasPoint(e);
     if (!interacted) { interacted = true; hint.classList.add('hide'); }
+    // black hole mode overrides the active tool: any click drops a singularity
+    if (bhMode) { spawnBlackHole(pointerPos.x, pointerPos.y); return; }
     if (tool === 'delete') {
       const hit = Query.point(dynamicBodies(), pointerPos)[0];
       if (hit) { deletePop(hit.position.x, hit.position.y, hit.plugin.fill); Composite.remove(world, hit); }
@@ -628,27 +893,57 @@
   // ================= Controls =================
   const gravitySlider = document.getElementById('gravity');
   const windSlider = document.getElementById('wind');
+  const airSlider = document.getElementById('air');
+  const massSlider = document.getElementById('massMul');
+  const boomSlider = document.getElementById('boomPow');
+  const waterSlider = document.getElementById('water');
   const gravOut = document.getElementById('gravOut');
   const windOut = document.getElementById('windOut');
+  const airOut = document.getElementById('airOut');
+  const massOut = document.getElementById('massOut');
+  const boomOut = document.getElementById('boomOut');
+  const waterOut = document.getElementById('waterOut');
+  const bhBtn = document.getElementById('bhBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const slowBtn = document.getElementById('slowBtn');
   const clearBtn = document.getElementById('clearBtn');
   const fsBtn = document.getElementById('fsBtn');
   const pauseIcon = document.getElementById('pauseIcon');
   const playIcon = document.getElementById('playIcon');
+  const hud = document.getElementById('hud');
+  const statsHead = document.getElementById('statsHead');
   const hudFps = document.getElementById('hudFps');
   const hudCount = document.getElementById('hudCount');
+  const hudMass = document.getElementById('hudMass');
+  const hudAvgV = document.getElementById('hudAvgV');
+  const hudMaxV = document.getElementById('hudMaxV');
+  const hudKE = document.getElementById('hudKE');
+  const hudPE = document.getElementById('hudPE');
+  const hudTime = document.getElementById('hudTime');
   const hudGrav = document.getElementById('hudGrav');
   const hudSpeed = document.getElementById('hudSpeed');
   const hudState = document.getElementById('hudState');
 
+  // collapse / expand the telemetry panel
+  statsHead.addEventListener('click', () => {
+    const collapsed = hud.classList.toggle('collapsed');
+    statsHead.setAttribute('aria-expanded', String(!collapsed));
+  });
+
   let paused = false, slow = false, wind = 0;
+  let airRes = 0;        // 0..1 from the Air Resistance slider
+  let massMul = 1;       // 0.25..5 spawn mass multiplier
+  let boomPower = 1;     // 0.1..3 explosion force multiplier
+  let waterLevel = 0;    // 0..1 fraction of the screen filled with water
+  let bhMode = false;    // black hole click mode
+
+  // 0% keeps Matter's light default; 100% turns the air to soup
+  const airFriction = () => 0.001 + airRes * 0.119;
 
   gravitySlider.addEventListener('input', () => {
     const g = gravitySlider.value / 100;
     engine.gravity.y = g;
     gravOut.textContent = g.toFixed(2) + ' g';
-    hudGrav.textContent = g.toFixed(2) + ' g';
   });
   windSlider.addEventListener('input', () => {
     wind = windSlider.value / 100;
@@ -659,6 +954,37 @@
   windSlider.addEventListener('dblclick', () => {
     windSlider.value = 0; wind = 0; windOut.textContent = 'calm';
   });
+
+  // air resistance retunes every live body and becomes the spawn default
+  airSlider.addEventListener('input', () => {
+    airRes = airSlider.value / 100;
+    airOut.textContent = Math.round(airRes * 100) + '%';
+    const fa = airFriction();
+    for (const b of dynamicBodies()) b.frictionAir = fa;
+  });
+
+  massSlider.addEventListener('input', () => {
+    massMul = massSlider.value / 100;
+    massOut.textContent = massMul.toFixed(2) + '×';
+  });
+
+  boomSlider.addEventListener('input', () => {
+    boomPower = boomSlider.value / 100;
+    boomOut.textContent = Math.round(boomPower * 100) + '%';
+  });
+
+  waterSlider.addEventListener('input', () => {
+    waterLevel = waterSlider.value / 100;
+    waterOut.textContent = waterLevel === 0 ? 'dry' : Math.round(waterLevel * 100) + '%';
+  });
+
+  function setBhMode(on) {
+    bhMode = on;
+    bhBtn.classList.toggle('on', on);
+    // suspend the drag constraint while black hole mode owns the clicks
+    mouseConstraint.constraint.stiffness = (tool === 'drag' && !on) ? 0.12 : 0;
+  }
+  bhBtn.addEventListener('click', () => setBhMode(!bhMode));
 
   function setPaused(p) {
     paused = p;
@@ -691,6 +1017,7 @@
     else if (e.key === '5') setTool('boom');
     else if (e.key === '6') setTool('delete');
     else if (e.key.toLowerCase() === 's') setSlow(!slow);
+    else if (e.key.toLowerCase() === 'b') setBhMode(!bhMode);
     else if (e.key.toLowerCase() === 'c') clearBtn.click();
     else if (e.key.toLowerCase() === 'f') fsBtn.click();
   });
@@ -819,6 +1146,87 @@
   // ================= FPS =================
   let fpsFrames = 0, fpsLast = performance.now(), fpsValue = 60;
 
+  // ================= Statistics =================
+  // All metrics are read directly from the live Matter.js world each frame.
+  // Units: distance in px, velocity in px/tick (Matter's native step of
+  // ~16.7 ms), mass in Matter's density-derived units — so the energies are
+  // in consistent "sim units", meaningful relative to each other rather
+  // than as joules.
+
+  let simTime = 0; // accumulated *simulated* ms — freezes on pause, quarters in slow-mo
+
+  // Compact formatter so big energy numbers don't stretch the panel:
+  // 1234 -> "1.23k", 5678901 -> "5.68M"
+  function fmt(n) {
+    const a = Math.abs(n);
+    if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (a >= 1e3) return (n / 1e3).toFixed(2) + 'k';
+    return n.toFixed(a >= 100 ? 0 : 1);
+  }
+
+  // mm:ss.d from accumulated sim milliseconds
+  function fmtTime(ms) {
+    const s = ms / 1000;
+    const m = (s / 60) | 0;
+    const rem = s - m * 60;
+    return String(m).padStart(2, '0') + ':' +
+           rem.toFixed(1).padStart(4, '0');
+  }
+
+  // Single pass over the dynamic bodies producing every metric at once,
+  // so the loop never iterates the world twice for the panel.
+  function computeStats(bodies) {
+    // Effective gravitational acceleration in px/tick²:
+    // Matter applies a = gravity.y * gravityScale (0.001) in px/ms²;
+    // one tick is 16.666 ms, so multiply by 16.666² to stay in the same
+    // time base as body.velocity (px/tick). Keeps KE and PE comparable.
+    const gEff = engine.gravity.y * 0.001 * (16.666 * 16.666);
+    const floorY = H; // top edge of the floor wall = zero-height reference
+
+    let mass = 0, sumV = 0, maxV = 0, ke = 0, pe = 0;
+    for (const b of bodies) {
+      mass += b.mass;
+
+      // speed = |velocity vector|, px/tick
+      const v = Math.hypot(b.velocity.x, b.velocity.y);
+      sumV += v;
+      if (v > maxV) maxV = v;
+
+      // kinetic energy: translational ½mv² plus rotational ½Iω²
+      ke += 0.5 * b.mass * v * v
+          + 0.5 * b.inertia * b.angularVelocity * b.angularVelocity;
+
+      // potential energy: m·g·h, height measured up from the floor.
+      // Clamped at 0 so bodies resting on the floor read as zero,
+      // and sign follows gravity (negative gravity flips the reference).
+      pe += b.mass * gEff * Math.max(floorY - b.position.y, 0);
+    }
+
+    return {
+      count: bodies.length,
+      mass,
+      avgV: bodies.length ? sumV / bodies.length : 0,
+      maxV,
+      ke,
+      pe,
+    };
+  }
+
+  // Write the metrics into the panel. Every value cell is fixed-width
+  // with tabular numerals, so per-frame updates don't cause reflow flicker.
+  function updateStatsPanel(s) {
+    hudCount.textContent = s.count;
+    hudMass.textContent = fmt(s.mass);
+    hudAvgV.textContent = s.avgV.toFixed(2);
+    hudMaxV.textContent = s.maxV.toFixed(2);
+    hudKE.textContent = fmt(s.ke);
+    hudPE.textContent = fmt(s.pe);
+    hudTime.textContent = fmtTime(simTime);
+    hudGrav.textContent = Math.abs(engine.gravity.y).toFixed(2) + ' g';
+    hudSpeed.textContent = paused ? '0.00×' : slow ? '0.25×' : '1.00×';
+    hudState.innerHTML = paused ? 'paused' : slow ? 'slow motion' : '&nbsp;';
+  }
+
   // ================= Main loop =================
   const MAX_BODIES = 320;
   let lastT = performance.now();
@@ -844,10 +1252,24 @@
       bodies.slice(0, bodies.length - MAX_BODIES).forEach(b => Composite.remove(world, b));
     }
 
+    // age the black hole on sim time so pause freezes it and slow-mo stretches it
+    if (blackHole) {
+      blackHole.age += dt * simSpeed;
+      if (blackHole.age > BH_LIFE) blackHole = null;
+    }
+
     if (!paused) {
-      if (wind !== 0) {
-        const f = wind * 0.00035;
-        for (const b of bodies) Body.applyForce(b, b.position, { x: f * b.mass, y: 0 });
+      // single pass applies every ambient force — wind, buoyancy, black
+      // hole pull — so the body list is never iterated more than once
+      const doWind = wind !== 0, doWater = waterLevel > 0;
+      if (doWind || doWater || blackHole) {
+        const windF = wind * 0.00035;
+        const sy = surfaceY();
+        for (const b of bodies) {
+          if (doWind) Body.applyForce(b, b.position, { x: windF * b.mass, y: 0 });
+          if (doWater) applyBuoyancy(b, sy);
+          if (blackHole) applyBlackHole(b);
+        }
       }
       Engine.update(engine, dt);
     }
@@ -865,21 +1287,25 @@
 
     ctx.drawImage(gridCanvas, 0, 0, W, H);
     drawStreaks();
+    drawBlackHole();
     for (const b of bodies) drawBody(b);
+    drawWater();
     drawParticles();
     drawDragLink();
 
-    // ---- HUD ----
+    // ---- Telemetry ----
+    simTime += dt * simSpeed; // runtime advances only as fast as the sim does
+
+    // FPS over a rolling half-second window — steadier than per-frame dt
     fpsFrames++;
     if (t - fpsLast >= 500) {
       fpsValue = Math.round(fpsFrames * 1000 / (t - fpsLast));
       fpsFrames = 0; fpsLast = t;
       hudFps.textContent = fpsValue;
-      hudFps.className = 'v ' + (fpsValue >= 50 ? 'good' : 'warn');
+      hudFps.className = 'v' + (fpsValue >= 50 ? '' : ' warn');
     }
-    hudCount.textContent = bodies.length;
-    hudSpeed.textContent = paused ? '0.00×' : slow ? '0.25×' : '1.00×';
-    hudState.innerHTML = paused ? 'paused' : slow ? 'slow motion' : '&nbsp;';
+
+    updateStatsPanel(computeStats(bodies));
   }
   requestAnimationFrame(loop);
 
