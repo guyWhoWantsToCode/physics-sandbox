@@ -20,6 +20,13 @@
     --violet: #a78bfa;
     --water: #4aa8ff;
     --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    /* spacing scale — every panel margin/gap derives from these */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
     --mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
     --sans: "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   }
@@ -52,10 +59,11 @@
   @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes riseC { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
   @keyframes riseL { from { opacity: 0; transform: translate(-14px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+  @keyframes fall { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
 
   /* ---------- Header ---------- */
   header {
-    position: fixed; top: 18px; left: 22px; z-index: 10;
+    position: fixed; top: calc(var(--dock-h, 150px) + 16px); left: 22px; z-index: 10;
     pointer-events: none; user-select: none;
     animation: rise .7s var(--ease) both;
   }
@@ -72,7 +80,7 @@
 
   /* ---------- Telemetry panel (collapsible) ---------- */
   #hud {
-    position: fixed; top: 18px; right: 22px; z-index: 10;
+    position: fixed; top: calc(var(--dock-h, 150px) + 16px); right: 22px; z-index: 10;
     font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
     user-select: none; width: 212px; overflow: hidden;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -115,22 +123,22 @@
 
   /* ---------- Tool rail ---------- */
   #tools {
-    position: fixed; left: 20px; top: 50%; transform: translateY(-50%); z-index: 10;
-    display: flex; flex-direction: column; gap: 7px;
+    position: fixed; left: 22px; top: calc(var(--dock-h, 150px) + 78px); z-index: 10;
+    display: flex; flex-direction: row; gap: 9px;
     background: var(--panel); border: 1px solid var(--panel-border);
-    border-radius: 16px; padding: 10px; backdrop-filter: blur(14px);
+    border-radius: 16px; padding: 12px; backdrop-filter: blur(14px);
     box-shadow: var(--panel-glow);
-    animation: riseL .7s var(--ease) .12s both;
+    animation: rise .7s var(--ease) .12s both;
   }
   .tool {
-    width: 46px; height: 46px; border-radius: 11px; border: 1px solid transparent;
+    width: 48px; height: 48px; border-radius: 11px; border: 1px solid transparent;
     background: transparent; color: var(--ink-dim); cursor: pointer;
     display: grid; place-items: center; position: relative;
     transition: color .18s var(--ease), background .18s var(--ease),
                 border-color .18s var(--ease), transform .18s var(--ease),
                 box-shadow .18s var(--ease);
   }
-  .tool:hover { color: var(--ink); background: rgba(111, 211, 255, 0.07); transform: translateY(-1px); }
+  .tool:hover { color: var(--ink); background: rgba(111, 211, 255, 0.07); transform: translateY(-1px); box-shadow: 0 0 14px rgba(111, 211, 255, 0.15); }
   .tool:active { transform: scale(0.94); }
   .tool.active {
     color: var(--cyan); background: rgba(111, 211, 255, 0.13);
@@ -152,10 +160,10 @@
     position: absolute; bottom: 2px; right: 5px; font-family: var(--mono);
     font-size: 8px; color: var(--ink-dim); opacity: .7;
   }
-  .tool-sep { height: 1px; background: var(--panel-border); margin: 2px 4px; }
+  .tool-sep { width: 1px; background: var(--panel-border); margin: 4px 2px; }
   .tool[data-tip]::after {
     content: attr(data-tip);
-    position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%) translateX(-4px);
+    position: absolute; left: 50%; top: calc(100% + 12px); transform: translateX(-50%) translateY(-4px);
     background: rgba(20, 41, 63, 0.95); border: 1px solid var(--panel-border); color: var(--ink);
     font-size: 11px; font-family: var(--mono); letter-spacing: .05em;
     padding: 6px 10px; border-radius: 8px; white-space: nowrap;
@@ -163,31 +171,43 @@
     transition: opacity .18s var(--ease), transform .18s var(--ease);
     box-shadow: 0 6px 20px rgba(0,0,0,.4);
   }
-  .tool:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+  .tool:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* ---------- Bottom console ---------- */
+  /* ---------- Bottom dock: full-width band pinned to the bottom edge ---------- */
   #console {
-    position: fixed; bottom: 18px; left: 50%; z-index: 10;
-    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
-    background: var(--panel); border: 1px solid var(--panel-border);
-    border-radius: 18px; padding: 14px 22px 15px; backdrop-filter: blur(14px);
-    box-shadow: var(--panel-glow);
-    width: 580px; max-width: calc(100vw - 24px);
-    animation: riseC .7s var(--ease) .18s both;
-    transform: translateX(-50%);
+    position: fixed; top: 0; left: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3);
+    background: var(--panel);
+    border: 0; border-bottom: 1px solid var(--panel-border);
+    border-radius: 0; backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    width: 100%;
+    padding: var(--sp-4) var(--sp-5);
+    animation: fall .7s var(--ease) .18s both;
   }
-  #dials {
-    display: grid; grid-template-columns: repeat(3, minmax(148px, 1fr));
-    gap: 11px 20px;
+  /* one row of dials, separated by hairline dividers (wireframe: G | W | ...) */
+  #dials { display: flex; align-items: stretch; }
+  .dial {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; gap: var(--sp-2);
+    padding: 0 var(--sp-3);
+    border-left: 1px solid var(--panel-border);
   }
-  .dial { display: flex; flex-direction: column; gap: 7px; }
-  .dial-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .dial:first-child { border-left: 0; padding-left: 0; }
+  .dial:last-child { padding-right: 0; }
+  .dial-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--sp-2); min-height: 15px; /* uniform row height keeps rows level */
+  }
   .dial label {
     font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-    color: var(--ink-dim);
+    color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .dial output {
     font-family: var(--mono); font-size: 11px; color: var(--cyan);
+    /* fixed slot + tabular digits: values line up and never jitter */
+    min-width: 56px; text-align: right; flex: none;
+    font-variant-numeric: tabular-nums;
     transition: text-shadow .2s var(--ease);
   }
   #windOut { color: var(--amber); }
@@ -196,8 +216,22 @@
   #boomOut { color: #ff8a8a; }
   #waterOut { color: #5ab0ff; }
   input[type=range] {
-    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
-    background: rgba(126,190,228,.22); border-radius: 2px; outline: none; cursor: pointer;
+    -webkit-appearance: none; appearance: none; width: 100%;
+    /* The input box is thumb-height; the 4px track is painted as a centered
+       background layer inside it. The thumb therefore centers on the track
+       by construction and its overflow stays inside the row — it can never
+       sit on top of the label above. Bonus: a much larger hit area. */
+    height: 22px; background: transparent;
+    background-image: linear-gradient(rgba(126,190,228,.22), rgba(126,190,228,.22));
+    background-size: 100% 4px; background-position: center; background-repeat: no-repeat;
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  @supports (-moz-appearance: none) {
+    /* Firefox paints its own track element — use it and drop the bg layer */
+    input[type=range] { background-image: none; }
+    input[type=range]::-moz-range-track {
+      height: 4px; background: rgba(126,190,228,.22); border-radius: 2px;
+    }
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%;
@@ -291,9 +325,9 @@
 
   .console-hr { height: 1px; background: var(--panel-border); }
 
-  .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btns { display: flex; gap: var(--sp-2); justify-content: center; flex-wrap: wrap; }
   .btn {
-    height: 42px; min-width: 42px; padding: 0 13px; border-radius: 11px;
+    height: 42px; min-width: 46px; padding: 0 13px; border-radius: 11px;
     border: 1px solid var(--panel-border); background: rgba(111,211,255,.05);
     color: var(--ink-dim); cursor: pointer; display: inline-flex; align-items: center;
     justify-content: center; gap: 7px; font-family: var(--mono); font-size: 11px;
@@ -302,7 +336,7 @@
                 border-color .18s var(--ease), transform .18s var(--ease),
                 box-shadow .18s var(--ease);
   }
-  .btn:hover { color: var(--ink); background: rgba(111,211,255,.1); transform: translateY(-1px); }
+  .btn:hover { color: var(--ink); background: rgba(111,211,255,.1); transform: translateY(-1px) scale(1.04); }
   .btn:active { transform: scale(0.95); }
   .btn.on {
     color: var(--amber); border-color: rgba(255,180,84,.45); background: rgba(255,180,84,.1);
@@ -316,19 +350,23 @@
 
   /* ---------- Hint ---------- */
   #hint {
-    position: fixed; bottom: 216px; left: 50%; transform: translateX(-50%); z-index: 9;
+    position: fixed; bottom: 312px; left: 50%; transform: translateX(-50%); z-index: 9;
     font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
     color: var(--ink-dim); user-select: none; pointer-events: none;
     transition: opacity .7s var(--ease); text-transform: uppercase;
     animation: riseC .7s var(--ease) .5s both;
   }
-  #hint.hide { opacity: 0; }
+  /* animation:none is required — the entrance animation's fill-mode
+     otherwise pins opacity at 1 and overrides this transition */
+  #hint.hide { opacity: 0; animation: none; }
 
   /* ================= Tablet: same layout, chunkier targets ================= */
   @media (min-width: 761px) and (max-width: 1099px) {
     .tool { width: 52px; height: 52px; }
     .btn { height: 46px; min-width: 46px; }
-    #console { width: 540px; padding: 12px 18px 13px; }
+    #console { padding: var(--sp-4) var(--sp-5); }
+    #dials { flex-wrap: wrap; gap: var(--sp-4) var(--sp-5); }
+    .dial { flex: 1 1 30%; border-left: 0; padding: 0; }
     input[type=range]::-webkit-slider-thumb { width: 19px; height: 19px; }
     input[type=range]::-moz-range-thumb { width: 19px; height: 19px; }
   }
@@ -366,28 +404,34 @@
 
     /* the console becomes a slide-up settings drawer */
     #console {
-      bottom: 0; width: 100%; max-width: 100%; z-index: 13;
-      border-radius: 20px 20px 0 0; border-bottom: 0;
-      padding: 8px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+      top: auto; bottom: 0; left: 0; width: 100%; max-width: 100%; z-index: 13;
+      border-bottom: 0; border-top: 0;
+      border: 1px solid var(--panel-border); border-bottom: 0;
+      border-radius: 20px 20px 0 0;
+      padding: var(--sp-2) var(--sp-5) calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
       max-height: 72vh; overflow-y: auto;
-      transform: translate(-50%, 108%);
+      transform: translateY(108%);
       transition: transform .38s var(--ease);
       animation: none;
     }
-    body.drawer-open #console { transform: translate(-50%, 0); }
+    body.drawer-open #console { transform: translateY(0); }
     #drawerHandle {
       display: block; width: 44px; height: 5px; border-radius: 3px;
       background: rgba(126, 190, 228, .35); margin: 4px auto 10px;
     }
-    #dials { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+    #dials { flex-direction: column; gap: var(--sp-4); }
+    .dial { border-left: 0; padding: 0; }
     .dial label { font-size: 11px; letter-spacing: .14em; }
-    .dial output { font-size: 12px; }
-    /* finger-sized slider targets */
-    input[type=range] { height: 6px; }
+    .dial output { font-size: 12px; min-width: 62px; }
+    /* finger-sized slider targets: 30px hit box, 6px centered track */
+    input[type=range] { height: 30px; background-size: 100% 6px; }
     input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; }
     input[type=range]::-moz-range-thumb { width: 24px; height: 24px; }
+    @supports (-moz-appearance: none) {
+      input[type=range]::-moz-range-track { height: 6px; }
+    }
     .btn { height: 48px; min-width: 48px; padding: 0 14px; font-size: 12px; }
-    .btns { gap: 10px; }
+    .btns { gap: var(--sp-3); }
 
     header { top: 12px; left: 16px; }
     header h1 { font-size: 14px; }
@@ -477,7 +521,7 @@
       <input type="range" id="wind" min="-100" max="100" value="0">
     </div>
     <div class="dial">
-      <div class="dial-head"><label for="air">Air Resist</label><output id="airOut">0%</output></div>
+      <div class="dial-head"><label for="air">Air</label><output id="airOut">0%</output></div>
       <input type="range" id="air" min="0" max="100" value="0">
     </div>
     <div class="dial">
@@ -485,16 +529,12 @@
       <input type="range" id="massMul" min="25" max="500" value="100">
     </div>
     <div class="dial">
-      <div class="dial-head"><label for="boomPow">Explosion</label><output id="boomOut">100%</output></div>
-      <input type="range" id="boomPow" min="10" max="300" value="100">
+      <div class="dial-head"><label for="bounce">Elasticity</label><output id="bounceOut">35%</output></div>
+      <input type="range" id="bounce" min="0" max="95" value="35">
     </div>
     <div class="dial">
       <div class="dial-head"><label for="water">Water</label><output id="waterOut">dry</output></div>
       <input type="range" id="water" min="0" max="100" value="0">
-    </div>
-    <div class="dial">
-      <div class="dial-head"><label for="bounce">Elasticity</label><output id="bounceOut">35%</output></div>
-      <input type="range" id="bounce" min="0" max="95" value="35">
     </div>
     <div class="dial">
       <div class="dial-head"><label for="timeScale">Time</label><output id="timeOut">1.00×</output></div>
@@ -504,6 +544,10 @@
       <div class="dial-head"><label for="particleAmt">Particles</label><output id="partOut">100%</output></div>
       <input type="range" id="particleAmt" min="25" max="200" value="100">
     </div>
+    <div class="dial">
+      <div class="dial-head"><label for="boomPow">Explosion</label><output id="boomOut">100%</output></div>
+      <input type="range" id="boomPow" min="10" max="300" value="100">
+    </div>
   </div>
   <div class="console-hr"></div>
   <div class="btns">
@@ -511,9 +555,21 @@
       <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
       <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>
     </button>
+    <button class="btn" id="stepBtn" title="Step one tick (pauses first)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5.5v13a1 1 0 0 0 1.5.87l9-6.5a1 1 0 0 0 0-1.74l-9-6.5A1 1 0 0 0 6 5.5Z"/><rect x="17" y="5" width="2.6" height="14" rx="1"/></svg>
+    </button>
     <button class="btn" id="slowBtn" title="Slow motion (S)">0.25×</button>
     <button class="btn bh" id="bhBtn" title="Black hole mode (B)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M21 12a9 9 0 1 1-9-9"/><path d="M6.8 12A5.2 5.2 0 1 0 12 6.8"/></svg>
+    </button>
+    <button class="btn" id="trailsBtn" title="Motion trails (T)" aria-label="Motion trails">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="17" cy="7" r="3.2"/><path d="M13 10.5 5.5 18M14.5 13.5 9 19M11 8.5 4 15.5" opacity=".65"/></svg>
+    </button>
+    <button class="btn" id="camBtn" title="Reset camera view">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/></svg>
+    </button>
+    <button class="btn" id="shotBtn" title="Save screenshot (PNG)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.4-2h5.2L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5Z"/><circle cx="12" cy="13" r="3.4"/></svg>
     </button>
     <button class="btn" id="resetBtn" title="Reset dials to defaults (R)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h9M17 17h3"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="17" r="2"/></svg>
@@ -521,9 +577,7 @@
     <button class="btn" id="clearBtn" title="Clear all (C)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg>
     </button>
-    <button class="btn" id="trailsBtn" title="Motion trails (T)" aria-label="Motion trails">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="17" cy="7" r="3.2"/><path d="M13 10.5 5.5 18M14.5 13.5 9 19M11 8.5 4 15.5" opacity=".65"/></svg>
-    </button>
+    <button class="btn" id="zeroGBtn" title="Zero gravity — press again to restore">0G</button>
     <button class="btn" id="fsBtn" title="Fullscreen (F)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg>
     </button>
@@ -1074,6 +1128,9 @@
   function markInteracted() {
     if (!interacted) { interacted = true; hint.classList.add('hide'); }
   }
+  // "doing things" means anything: canvas, tools, sliders, buttons, keys
+  document.addEventListener('pointerdown', markInteracted);
+  document.addEventListener('keydown', markInteracted);
 
   // The one implementation of "the active tool acts at this world point" —
   // shared by the mouse path, the touch path, and the long-press menu.
@@ -1295,6 +1352,9 @@
     const g = gravitySlider.value / 100;
     engine.gravity.y = g;
     gravOut.textContent = g.toFixed(2) + ' g';
+    // keep both zero-g buttons honest however gravity was changed
+    document.getElementById('zeroGBtn').classList.toggle('on', g === 0);
+    document.getElementById('mGrav').classList.toggle('on', g === 0);
   });
   windSlider.addEventListener('input', () => {
     wind = windSlider.value / 100;
@@ -1354,20 +1414,59 @@
     trailsBtn.classList.toggle('on', trails);
   });
 
+  // ================= Step / camera / screenshot =================
+  const stepBtn = document.getElementById('stepBtn');
+  const camBtn = document.getElementById('camBtn');
+  const shotBtn = document.getElementById('shotBtn');
+
+  // advance exactly one 60 Hz tick — pauses first if the sim is running,
+  // so repeated presses inspect the motion frame by frame
+  function stepOnce() {
+    if (!paused) setPaused(true);
+    const bodies = dynamicBodies();
+    applyAmbientForces(bodies);
+    Engine.update(engine, 16.666); // engine.timing.timeScale applies inside
+    const inc = 16.666 * timeBase * (slow ? 0.25 : 1);
+    simTime += inc; // the runtime clock and black hole age advance one tick too
+    if (blackHole) {
+      blackHole.age += inc;
+      if (blackHole.age > BH_LIFE) blackHole = null;
+    }
+  }
+  stepBtn.addEventListener('click', stepOnce);
+
+  camBtn.addEventListener('click', resetCamera);
+
+  shotBtn.addEventListener('click', () => {
+    // the canvas already composites everything, so a straight capture works
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'kinetics-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
+  });
+
   // ================= Mobile action bar =================
   mPause.addEventListener('click', () => setPaused(!paused));
   mReset.addEventListener('click', resetDials);
 
   // quick zero-g toggle: routes through the gravity slider's own handler so
-  // the dial, readout, and telemetry all stay in sync
+  // the dial, readout, and telemetry all stay in sync. Shared by the mobile
+  // Gravity button and the desktop 0G button — one code path, two entries.
+  const zeroGBtn = document.getElementById('zeroGBtn');
   let prevGrav = 100;
-  mGrav.addEventListener('click', () => {
+  function toggleZeroG() {
     const zero = +gravitySlider.value === 0;
     if (!zero) prevGrav = +gravitySlider.value || 100;
     gravitySlider.value = zero ? prevGrav : 0;
+    // the slider's input handler applies gravity AND syncs both buttons
     gravitySlider.dispatchEvent(new Event('input'));
-    mGrav.classList.toggle('on', !zero);
-  });
+  }
+  mGrav.addEventListener('click', toggleZeroG);
+  zeroGBtn.addEventListener('click', toggleZeroG);
 
   // ================= Settings drawer (phone) =================
   function setDrawer(open) {
@@ -1431,6 +1530,14 @@
     hud.classList.add('collapsed');
     statsHead.setAttribute('aria-expanded', 'false');
   }
+
+  // The dock's height varies (tablet wrap, font settings), and the header,
+  // telemetry, and tool rail are positioned just below it via the --dock-h
+  // custom property — a ResizeObserver keeps that value truthful. Layout
+  // only; on phones the drawer overrides these positions anyway.
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--dock-h', consoleEl.offsetHeight + 'px');
+  }).observe(consoleEl);
 
   function setBhMode(on) {
     bhMode = on;
@@ -1719,6 +1826,21 @@
   const MAX_BODIES = Math.min(innerWidth, innerHeight) < 760 ? 150 : 320;
   let lastT = performance.now();
 
+  // single pass applies every ambient force — wind, buoyancy, black hole
+  // pull — so the body list is never iterated more than once. Shared by
+  // the live loop and the Step button.
+  function applyAmbientForces(bodies) {
+    const doWind = wind !== 0, doWater = waterLevel > 0;
+    if (!doWind && !doWater && !blackHole) return;
+    const windF = wind * 0.00035;
+    const sy = surfaceY();
+    for (const b of bodies) {
+      if (doWind) Body.applyForce(b, b.position, { x: windF * b.mass, y: 0 });
+      if (doWater) applyBuoyancy(b, sy);
+      if (blackHole) applyBlackHole(b);
+    }
+  }
+
   function loop(t) {
     requestAnimationFrame(loop);
     const dt = Math.min(t - lastT, 33);
@@ -1755,18 +1877,7 @@
     }
 
     if (!paused) {
-      // single pass applies every ambient force — wind, buoyancy, black
-      // hole pull — so the body list is never iterated more than once
-      const doWind = wind !== 0, doWater = waterLevel > 0;
-      if (doWind || doWater || blackHole) {
-        const windF = wind * 0.00035;
-        const sy = surfaceY();
-        for (const b of bodies) {
-          if (doWind) Body.applyForce(b, b.position, { x: windF * b.mass, y: 0 });
-          if (doWater) applyBuoyancy(b, sy);
-          if (blackHole) applyBlackHole(b);
-        }
-      }
+      applyAmbientForces(bodies);
       Engine.update(engine, dt);
     }
 
